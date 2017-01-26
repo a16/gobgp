@@ -19,6 +19,7 @@ import (
 	"bufio"
 	"net"
 	"os"
+	"runtime"
 	"strconv"
 	"time"
 
@@ -52,6 +53,7 @@ func connLoop(conn *net.TCPConn) {
 
 		peerAddr := make(net.IP, len(bmpMsg.PeerHeader.PeerAddress))
 		copy(peerAddr, bmpMsg.PeerHeader.PeerAddress)
+		peerAS := bmpMsg.PeerHeader.PeerAS
 		switch bmpMsg.Header.Type {
 		case bmp.BMP_MSG_ROUTE_MONITORING:
 			bmpRouteMonitoringMsg := bmpMsg.Body.(*bmp.BMPRouteMonitoring)
@@ -59,13 +61,21 @@ func connLoop(conn *net.TCPConn) {
 				if p == nil || p.IsEOR() {
 					log.WithFields(log.Fields{
 						"Topic": "BMP",
-					}).Infof("Received EoR from %v", conn.RemoteAddr())
+					}).Infof("Received EoR from %v, %v, %v, %#v", conn.RemoteAddr(), peerAS, peerAddr, p)
 					continue
 				}
 			}
 		}
 	}
 	log.Info("conn was closed ", addr)
+}
+
+func init() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
+	log.SetFormatter(&log.JSONFormatter{
+		TimestampFormat: "2006/01/02 15:04:05",
+	})
+	log.SetLevel(log.InfoLevel)
 }
 
 func main() {
