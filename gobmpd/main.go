@@ -17,14 +17,26 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
-	"fmt"
-	log "github.com/Sirupsen/logrus"
-	"github.com/osrg/gobgp/packet/bmp"
 	"net"
 	"os"
 	"strconv"
+	"time"
+
+	log "github.com/Sirupsen/logrus"
+	"github.com/osrg/gobgp/packet/bgp"
+	"github.com/osrg/gobgp/packet/bmp"
+	"github.com/osrg/gobgp/table"
 )
+
+func handleBGPUpdate(bph *bmp.BMPPeerHeader, bgpMsg *bgp.BGPMessage) []*table.Path {
+	peerInfo := &table.PeerInfo{
+		Address: bph.PeerAddress,
+		AS:      bph.PeerAS,
+		ID:      bph.PeerBGPID,
+	}
+	ts := time.Unix(int64(bph.Timestamp), int64(0))
+	return table.ProcessMessage(bgpMsg, peerInfo, ts)
+}
 
 func connLoop(conn *net.TCPConn) {
 	addr := conn.RemoteAddr()
@@ -32,13 +44,26 @@ func connLoop(conn *net.TCPConn) {
 	scanner.Split(bmp.SplitBMP)
 
 	for scanner.Scan() {
-		msg, err := bmp.ParseBMPMessage(scanner.Bytes())
+		buf := scanner.Bytes()
+		bmpMsg, err := bmp.ParseBMPMessage(buf)
 		if err != nil {
-			log.Info(err)
 			continue
 		}
-		j, _ := json.Marshal(msg)
-		fmt.Print(string(j), "\n")
+
+		peerAddr := make(net.IP, len(bmpMsg.PeerHeader.PeerAddress))
+		copy(peerAddr, bmpMsg.PeerHeader.PeerAddress)
+		switch bmpMsg.Header.Type {
+		case bmp.BMP_MSG_ROUTE_MONITORING:
+			bmpRouteMonitoringMsg := bmpMsg.Body.(*bmp.BMPRouteMonitoring)
+			for _, p := range handleBGPUpdate(&bmpMsg.PeerHeader, bmpRouteMonitoringMsg.BGPUpdate) {
+				if p == nil || p.IsEOR() {
+					log.WithFields(log.Fields{
+						"Topic": "BMP",
+					}).Infof("Received EoR from %v", conn.RemoteAddr())
+					continue
+				}
+			}
+		}
 	}
 	log.Info("conn was closed ", addr)
 }
