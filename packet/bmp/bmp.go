@@ -44,7 +44,14 @@ const (
 	BMP_PEER_TYPE_L3VPN
 )
 
+func NewDataLengthError(str string) error {
+	return fmt.Errorf("not all %s bytes are available", str)
+}
+
 func (h *BMPHeader) DecodeFromBytes(data []byte) error {
+	if len(data) < 5 {
+		return NewDataLengthError("BMPHeader")
+	}
 	h.Version = data[0]
 	if data[0] != BMP_VERSION {
 		return fmt.Errorf("error version")
@@ -95,6 +102,9 @@ func NewBMPPeerHeader(t uint8, policy bool, dist uint64, address string, as uint
 }
 
 func (h *BMPPeerHeader) DecodeFromBytes(data []byte) error {
+	if len(data) < 42 {
+		return NewDataLengthError("BMPPeerHeader")
+	}
 	h.PeerType = data[0]
 	h.Flags = data[1]
 	if h.Flags&(1<<6) != 0 {
@@ -388,9 +398,14 @@ func NewBMPTLV(t uint16, v []byte) *BMPTLV {
 }
 
 func (tlv *BMPTLV) DecodeFromBytes(data []byte) error {
-	//TODO: check data length
+	if len(data) < 4 {
+		return NewDataLengthError("BMPTLV")
+	}
 	tlv.Type = binary.BigEndian.Uint16(data[0:2])
 	tlv.Length = binary.BigEndian.Uint16(data[2:4])
+	if len(data) < 4+tlv.Length {
+		return notAllBytesAvail
+	}
 	tlv.Value = data[4 : 4+tlv.Length]
 	return nil
 }

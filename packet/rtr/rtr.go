@@ -69,6 +69,10 @@ const (
 	DUPLICATE_ANNOUNCEMENT_RECORD
 )
 
+func NewDataLengthError(str string) error {
+	return fmt.Errorf("not all %s bytes are available", str)
+}
+
 type RTRMessage interface {
 	DecodeFromBytes([]byte) error
 	Serialize() ([]byte, error)
@@ -83,6 +87,9 @@ type RTRCommon struct {
 }
 
 func (m *RTRCommon) DecodeFromBytes(data []byte) error {
+	if len(data) < 12 {
+		return NewDataLengthError("RTRCommon")
+	}
 	m.Version = data[0]
 	m.Type = data[1]
 	m.SessionID = binary.BigEndian.Uint16(data[2:4])
@@ -138,6 +145,9 @@ type RTRReset struct {
 }
 
 func (m *RTRReset) DecodeFromBytes(data []byte) error {
+	if len(data) < 8 {
+		return NewDataLengthError("RTRReset")
+	}
 	m.Version = data[0]
 	m.Type = data[1]
 	m.Len = binary.BigEndian.Uint32(data[4:8])
@@ -173,6 +183,9 @@ type RTRCacheResponse struct {
 }
 
 func (m *RTRCacheResponse) DecodeFromBytes(data []byte) error {
+	if len(data) < 8 {
+		return NewDataLengthError("RTRCacheResponse")
+	}
 	m.Version = data[0]
 	m.Type = data[1]
 	m.SessionID = binary.BigEndian.Uint16(data[2:4])
@@ -209,6 +222,9 @@ type RTRIPPrefix struct {
 }
 
 func (m *RTRIPPrefix) DecodeFromBytes(data []byte) error {
+	if len(data) < 10 {
+		return NewDataLengthError("RTRIPPrefix")
+	}
 	m.Version = data[0]
 	m.Type = data[1]
 	m.Len = binary.BigEndian.Uint32(data[4:8])
@@ -216,9 +232,15 @@ func (m *RTRIPPrefix) DecodeFromBytes(data []byte) error {
 	m.PrefixLen = data[9]
 	m.MaxLen = data[10]
 	if m.Type == RTR_IPV4_PREFIX {
+		if len(data) < 20 {
+			return NewDataLengthError("RTRIPPrefix(IPv4)")
+		}
 		m.Prefix = net.IP(data[12:16]).To4()
 		m.AS = binary.BigEndian.Uint32(data[16:20])
 	} else {
+		if len(data) < 32 {
+			return NewDataLengthError("RTRIPPrefix(IPv6)")
+		}
 		m.Prefix = net.IP(data[12:28]).To16()
 		m.AS = binary.BigEndian.Uint32(data[28:32])
 	}
@@ -305,12 +327,18 @@ type RTRErrorReport struct {
 }
 
 func (m *RTRErrorReport) DecodeFromBytes(data []byte) error {
+	if len(data) < 16 {
+		return NewDataLengthError("RTRErrorReport")
+	}
 	m.Version = data[0]
 	m.Type = data[1]
 	m.ErrorCode = binary.BigEndian.Uint16(data[2:4])
 	m.Len = binary.BigEndian.Uint32(data[4:8])
 	m.PDULen = binary.BigEndian.Uint32(data[8:12])
 	m.PDU = make([]byte, m.PDULen)
+	if len(data) < 16+m.PDULen {
+		return NewDataLengthError("RTRErrorReport(PDU)")
+	}
 	copy(m.PDU, data[12:12+m.PDULen])
 	m.TextLen = binary.BigEndian.Uint32(data[12+m.PDULen : 16+m.PDULen])
 	m.Text = make([]byte, m.TextLen)
