@@ -44,7 +44,13 @@ const (
 	BMP_PEER_TYPE_L3VPN
 )
 
-func (h *BMPHeader) DecodeFromBytes(data []byte) error {
+func (h *BMPHeader) DecodeFromBytes(data []byte) (e error) {
+	defer func() {
+		if err := recover(); err != nil {
+			e = fmt.Errorf("Recovered from: %v", err)
+		}
+	}()
+
 	h.Version = data[0]
 	if data[0] != BMP_VERSION {
 		return fmt.Errorf("error version")
@@ -94,7 +100,13 @@ func NewBMPPeerHeader(t uint8, policy bool, dist uint64, address string, as uint
 	return h
 }
 
-func (h *BMPPeerHeader) DecodeFromBytes(data []byte) error {
+func (h *BMPPeerHeader) DecodeFromBytes(data []byte) (e error) {
+	defer func() {
+		if err := recover(); err != nil {
+			e = fmt.Errorf("Recovered from: %v", err)
+		}
+	}()
+
 	h.PeerType = data[0]
 	h.Flags = data[1]
 	if h.Flags&(1<<6) != 0 {
@@ -387,8 +399,13 @@ func NewBMPTLV(t uint16, v []byte) *BMPTLV {
 	}
 }
 
-func (tlv *BMPTLV) DecodeFromBytes(data []byte) error {
-	//TODO: check data length
+func (tlv *BMPTLV) DecodeFromBytes(data []byte) (e error) {
+	defer func() {
+		if err := recover(); err != nil {
+			e = fmt.Errorf("Recovered from: %v", err)
+		}
+	}()
+
 	tlv.Type = binary.BigEndian.Uint16(data[0:2])
 	tlv.Length = binary.BigEndian.Uint16(data[2:4])
 	tlv.Value = data[4 : 4+tlv.Length]
